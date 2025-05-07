@@ -1,0 +1,7 @@
+# ai-interviewer-meet/agent/requirements.
+livekit-api
+livekit-agents
+livekit-plugins-openai
+livekit-plugins-deepgram
+python-dotenv
+livekit-rtc

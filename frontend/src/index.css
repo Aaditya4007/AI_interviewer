@@ -1,0 +1,167 @@
+/* frontend/src/index.css */
+/* Import LiveKit base styles */
+@import '@livekit/components-styles';
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f0f0;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.app-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: auto;
+}
+
+.admin-view, .participant-view {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.admin-view h2, .participant-view h2 {
+  margin-top: 0;
+}
+
+.admin-view label, .admin-view input, .admin-view button {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.admin-view input[type="text"] { /* Be more specific */
+  padding: 8px;
+  width: 100%; /* Use 100% with box-sizing */
+  box-sizing: border-box; /* Include padding in width calculation */
+}
+
+
+.admin-view button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.admin-view button:hover {
+  background-color: #0056b3;
+}
+.admin-view button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.share-link {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid #d0d0d0;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.share-link p {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+
+.share-link code {
+  background-color: #e9e9e9;
+  padding: 5px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  display: block; /* Make code block take full width */
+  margin-top: 5px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+
+.error-message {
+    color: #dc3545; /* Bootstrap danger color */
+    background-color: #f8d7da; /* Light red background */
+    border: 1px solid #f5c6cb; /* Reddish border */
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.admin-controls {
+  background-color: #f8f9fa;
+  padding: 10px 15px;
+  margin-top: 15px;
+  margin-bottom: 15px; /* Add some space below */
+  border-radius: 5px;
+  border: 1px solid #dee2e6;
+}
+
+.admin-controls h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+
+.admin-controls label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: normal; /* Override potential bolding */
+}
+
+.admin-controls input[type="checkbox"] {
+  margin-right: 8px;
+  width: 16px; /* Explicit size */
+  height: 16px; /* Explicit size */
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+
+/* Basic layout for the room view */
+.room-view-container {
+    display: flex;
+    flex-direction: column;
+    /* Let LiveKitRoom handle height */
+    /* height: calc(100vh - 100px); */
+}
+
+/* Ensure LiveKit components take space */
+.livekit-video-conference {
+    flex-grow: 1; /* Take remaining vertical space */
+    min-height: 400px; /* Ensure it has some minimum height */
+    width: 100%;
+}
+
+/* Style disconnect message */
+.disconnect-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    padding: 20px;
+    text-align: center;
+}
+.disconnect-overlay button, .disconnect-overlay a {
+    margin-top: 15px;
+    padding: 8px 15px;
+    text-decoration: none;
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    // --- Essential Settings for Composite Projects ---
+    "composite": true,               // MUST be true when referenced
+    "emitDeclarationOnly": true,     // Emit only .d.ts files, satisfies allowImportingTsExtensions
+    "declaration": true,             // Implied by emitDeclarationOnly, but explicit is fine
+    "declarationMap": true,          // Emit sourcemaps for declarations
+
+    // --- Module Settings ---
+    "module": "ESNext",
+    "moduleResolution": "bundler",    // Recommended for Vite
+
+    // --- Compatibility & Strictness ---
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+
+    // --- Other ---
+    "allowImportingTsExtensions": true, // This should now be valid
+    "resolveJsonModule": true,
+    "isolatedModules": false           // Cannot use with declaration emit
+  },
+  "include": ["vite.config.ts"]        // Only include node-specific files
+}
