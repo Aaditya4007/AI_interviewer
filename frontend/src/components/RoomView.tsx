@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom'; // Link is used
+// FIX: Removed unused useNavigate import (already removed in your provided code)
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
     LiveKitRoom,
     VideoConference,
@@ -35,7 +36,6 @@ const RoomView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [showDisconnect, setShowDisconnect] = useState(false);
     const [disconnectReason, setDisconnectReason] = useState<DisconnectReason | null>(null);
-
     const [nameInput, setNameInput] = useState('');
 
     useEffect(() => {
@@ -60,7 +60,8 @@ const RoomView: React.FC = () => {
             if (participantIdentity) setParticipantIdentity(null);
             if (isAdmin) setIsAdmin(false);
         }
-    }, [searchParams, participantIdentity, isAdmin, isLoadingToken, error, showDisconnect]); // Added dependencies based on usage
+    }, [searchParams, participantIdentity, isAdmin, isLoadingToken, error, showDisconnect]);
+
 
     const handleNameSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -72,6 +73,7 @@ const RoomView: React.FC = () => {
             console.warn("Empty name submitted");
         }
     }, [nameInput, setSearchParams]);
+
 
     const fetchToken = useCallback(async () => {
         if (!roomName || !participantIdentity || error || showDisconnect) {
@@ -113,15 +115,15 @@ const RoomView: React.FC = () => {
     }, [roomName, participantIdentity, isAdmin, error, showDisconnect, backendUrl, livekitUrl]);
 
     useEffect(() => {
-        if (participantIdentity && !token && !connect && !isLoadingToken && !error && !showDisconnect) { // More precise condition
+        if (participantIdentity) {
             console.log("RoomView Effect 2: participantIdentity is set, calling fetchToken.");
             fetchToken();
-        } else if (!participantIdentity) {
+        } else {
             console.log("RoomView Effect 2: participantIdentity is null, not fetching token.");
              setConnect(false);
              setToken(null);
         }
-    }, [participantIdentity, token, connect, isLoadingToken, error, showDisconnect, fetchToken]); // Added dependencies
+    }, [participantIdentity, fetchToken]);
 
     const roomOptions: RoomOptions = useMemo(() => ({
         adaptiveStream: true,
@@ -137,7 +139,6 @@ const RoomView: React.FC = () => {
         setIsLoadingToken(false);
     }, []);
 
-    // --- Render Logic ---
 
     if (!participantIdentity && !error && !showDisconnect) {
         return (
@@ -171,9 +172,10 @@ const RoomView: React.FC = () => {
         return (
             <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>
                 <p>{displayError}</p>
-                <button onClick={() => {setError(null); setParticipantIdentity(null); setSearchParams({}); setIsLoadingToken(false); setToken(null); setConnect(false); /* Reset more states */}} style={{marginRight: '10px'}}>Enter Name Again</button>
-                {/* Conditionally show admin link */}
+                <button onClick={() => {setError(null); setParticipantIdentity(null); setSearchParams({}); setIsLoadingToken(false);}} style={{marginRight: '10px'}}>Enter Name Again</button>
+                {/* MODIFICATION START: Conditionally render admin link */}
                 {isAdmin && <Link to="/admin" style={{marginLeft: '10px'}}>Go Back to Admin</Link>}
+                {/* MODIFICATION END */}
             </div>
         );
     }
@@ -185,57 +187,31 @@ const RoomView: React.FC = () => {
         else if (disconnectReason === DisconnectReason.STATE_MISMATCH) message = "Connection error (state mismatch).";
         else if (disconnectReason === DisconnectReason.JOIN_FAILURE) message = "Failed to join the room. The room may not exist or the token might be invalid.";
         else if (disconnectReason === DisconnectReason.DUPLICATE_IDENTITY) message = "Another participant with the same identity is already in the room.";
-        
-        const canTryReconnecting = disconnectReason !== DisconnectReason.DUPLICATE_IDENTITY &&
-                                 disconnectReason !== DisconnectReason.ROOM_DELETED &&
-                                 disconnectReason !== DisconnectReason.JOIN_FAILURE && // Reconnecting with same token after join failure might not work
-                                 disconnectReason !== DisconnectReason.PARTICIPANT_REMOVED;
-
-
         return (
             <div className="disconnect-overlay">
                 <h2>Disconnected</h2>
                 <p>{message}</p>
-                {canTryReconnecting && (
+                {disconnectReason !== DisconnectReason.DUPLICATE_IDENTITY && (
                     <button onClick={() => window.location.reload()} style={{marginRight: '10px'}}>Try Reconnecting</button>
                 )}
-                {/* Conditionally show admin link */}
+                {/* MODIFICATION START: Conditionally render admin link */}
                 {isAdmin && <Link to="/admin" style={{marginLeft: '10px'}}>Go to Admin</Link>}
-                {!isAdmin && (
-                    <button onClick={() => {
-                        setShowDisconnect(false); 
-                        setError(null); 
-                        setParticipantIdentity(null); 
-                        setSearchParams({}); 
-                        setIsLoadingToken(false); 
-                        setToken(null); 
-                        setConnect(false);
-                    }} style={{marginRight: '10px'}}>
-                        Try Another Room/Name
-                    </button>
-                )}
+                {/* MODIFICATION END */}
             </div>
         );
     }
 
-    if ((!connect || !token || !livekitUrl) && participantIdentity) {
+     if ((!connect || !token || !livekitUrl) && participantIdentity) {
          return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing connection for {participantIdentity}...</div>;
     }
 
     if (!livekitUrl) {
          return <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>Cannot connect: LiveKit URL configuration is missing.</div>;
     }
-    if (!token && participantIdentity) { // Added participantIdentity check
-          return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection token for {participantIdentity}...</div>;
+    if (!token) {
+          return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection token...</div>;
     }
 
-    // Only render LiveKitRoom if token is present
-    if (!token) {
-        // This state should ideally be covered by isLoadingToken or error states if participantIdentity is set.
-        // If participantIdentity is null, the name input form is shown.
-        // Adding a fallback here just in case.
-        return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for user identity...</div>;
-    }
 
     return (
         <div className="participant-view room-view-container">
@@ -249,16 +225,13 @@ const RoomView: React.FC = () => {
                 onDisconnected={onDisconnected}
                 onError={(err: Error) => {
                      console.error("LiveKit Room critical error:", err);
-                     let errorMessage = `Connection error: ${err.message}`;
                      if (err.message.includes("permission denied") || err.message.includes("authentication failed")) {
-                        errorMessage = `Authentication failed: ${err.message}. The token might be invalid or expired.`;
-                     } else if (err.message.includes("signal connection failed") || err.message.includes("could not connect")){
-                        errorMessage = `Failed to connect to LiveKit server: ${err.message}. Check network or server URL.`
+                        setError(`Authentication failed: ${err.message}. Token invalid/expired?`);
+                     } else {
+                        setError(`Connection error: ${err.message}`);
                      }
-                     setError(errorMessage);
                      setConnect(false);
                      setIsLoadingToken(false);
-                     setToken(null); // Crucial to prevent re-render loop with bad token
                  }}
             >
                  <div style={{ marginBottom: '10px', padding: '5px', background: '#eee', borderRadius:'4px' }}>
