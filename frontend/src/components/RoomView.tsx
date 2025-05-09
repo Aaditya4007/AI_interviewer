@@ -1,5 +1,6 @@
+// frontend/src/components/RoomView.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-// FIX: Removed unused useNavigate import (already removed in your provided code)
+// FIX: Removed unused useNavigate import
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
     LiveKitRoom,
@@ -16,6 +17,7 @@ const AdminControlsWrapper: React.FC = () => {
     const room = useRoomContext();
     const { localParticipant } = useLocalParticipant();
     if (!room || !localParticipant) {
+        // console.warn("AdminControlsWrapper: Skipping render, room or localParticipant not ready."); // Optional: Keep if useful
         return null;
     }
     return <AdminControls localParticipant={localParticipant} />;
@@ -26,18 +28,23 @@ const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
 
 const RoomView: React.FC = () => {
     const { roomName } = useParams<{ roomName: string }>();
+    // FIX: Removed unused navigate variable
     const [searchParams, setSearchParams] = useSearchParams();
+    // const navigate = useNavigate(); // Removed
 
+    // Initialize state directly from URL search params
     const [participantIdentity, setParticipantIdentity] = useState<string | null>(() => searchParams.get('identity'));
     const [isAdmin, setIsAdmin] = useState<boolean>(() => searchParams.get('admin') === 'true');
     const [token, setToken] = useState<string | null>(null);
-    const [isLoadingToken, setIsLoadingToken] = useState(false);
+    const [isLoadingToken, setIsLoadingToken] = useState(false); // Default to false
     const [connect, setConnect] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showDisconnect, setShowDisconnect] = useState(false);
     const [disconnectReason, setDisconnectReason] = useState<DisconnectReason | null>(null);
-    const [nameInput, setNameInput] = useState('');
 
+    const [nameInput, setNameInput] = useState(''); // For the inline name input
+
+    // --- Effect 1: Check for identity when component mounts or URL changes ---
     useEffect(() => {
         console.log("RoomView Effect 1: Checking identity from URL.");
         const identityFromUrl = searchParams.get('identity');
@@ -45,40 +52,48 @@ const RoomView: React.FC = () => {
 
         if (identityFromUrl) {
             console.log(`RoomView Effect 1: Identity found in URL: ${identityFromUrl}, Admin: ${isAdminFromUrl}`);
+            // Update state only if it has actually changed
             if (identityFromUrl !== participantIdentity) {
                 setParticipantIdentity(identityFromUrl);
             }
             if (isAdminFromUrl !== isAdmin) {
                  setIsAdmin(isAdminFromUrl);
             }
+            // If identity is now set, prepare to fetch token (unless already fetching/error)
             if (!isLoadingToken && !error && !showDisconnect) {
                 setIsLoadingToken(true);
             }
         } else {
             console.log("RoomView Effect 1: No identity in URL. Will render name input form.");
+            // Ensure loading is off so the form can be shown
             setIsLoadingToken(false);
+            // Reset identity/admin state if URL params are removed
             if (participantIdentity) setParticipantIdentity(null);
             if (isAdmin) setIsAdmin(false);
         }
-    }, [searchParams, participantIdentity, isAdmin, isLoadingToken, error, showDisconnect]);
+    }, [searchParams]); // Rerun primarily when searchParams change
 
 
+    // --- Callback to handle name submission from inline form ---
     const handleNameSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         const trimmedName = nameInput.trim();
         if (trimmedName) {
             console.log(`RoomView handleNameSubmit: Name submitted: ${trimmedName}`);
-            setSearchParams({ identity: trimmedName }, { replace: true });
+            // Update URL search params. This triggers Effect 1 which sets state.
+            setSearchParams({ identity: trimmedName }, { replace: true }); // Use replace to avoid back button issues
         } else {
+            // setError("Please enter a valid name."); // Or just rely on input validation
             console.warn("Empty name submitted");
         }
     }, [nameInput, setSearchParams]);
 
 
+    // --- Effect 2: Fetch Token once identity is available ---
     const fetchToken = useCallback(async () => {
         if (!roomName || !participantIdentity || error || showDisconnect) {
             console.log("RoomView FetchToken: Skipping fetch. Conditions not met.", { roomName, participantIdentity, error, showDisconnect });
-            setIsLoadingToken(false);
+            setIsLoadingToken(false); // Ensure loading is off if we skip
             return;
         }
         if (!backendUrl || !livekitUrl) {
@@ -88,7 +103,7 @@ const RoomView: React.FC = () => {
         }
 
         console.log(`RoomView FetchToken: Fetching for ${participantIdentity}, Admin: ${isAdmin}`);
-        setIsLoadingToken(true);
+        setIsLoadingToken(true); // Set loading true before fetch
         setError(null);
         setConnect(false);
         setToken(null);
@@ -110,25 +125,28 @@ const RoomView: React.FC = () => {
             setError(err.message || 'Could not fetch access token.');
             setConnect(false);
         } finally {
-            setIsLoadingToken(false);
+            setIsLoadingToken(false); // Set loading false after fetch attempt
         }
     }, [roomName, participantIdentity, isAdmin, error, showDisconnect, backendUrl, livekitUrl]);
 
     useEffect(() => {
+        // Trigger token fetch only when participantIdentity changes to a non-null value
         if (participantIdentity) {
             console.log("RoomView Effect 2: participantIdentity is set, calling fetchToken.");
             fetchToken();
         } else {
             console.log("RoomView Effect 2: participantIdentity is null, not fetching token.");
+             // If identity becomes null (e.g. user navigates back), reset connection state
              setConnect(false);
              setToken(null);
         }
-    }, [participantIdentity, fetchToken]);
+    }, [participantIdentity, fetchToken]); // Depend on identity and the memoized fetch function
 
+    // FIX: Corrected useMemo syntax - removed the comment inside the function call
     const roomOptions: RoomOptions = useMemo(() => ({
         adaptiveStream: true,
         dynacast: true,
-    }), []);
+    }), []); // Dependency array is empty, options don't change
 
     const onDisconnected = useCallback((reason?: DisconnectReason) => {
         console.log("Disconnected from LiveKit Room. Reason:", reason);
@@ -137,9 +155,14 @@ const RoomView: React.FC = () => {
         setShowDisconnect(true);
         setDisconnectReason(reason ?? null);
         setIsLoadingToken(false);
+        // Optional: Clear identity state on disconnect? Or keep it for potential reconnect?
+        // setParticipantIdentity(null); // Uncomment if you want user to re-enter name on reconnect
     }, []);
 
+    // --- Render Logic ---
+    // console.log("RoomView Rendering:", { isLoadingToken, error, showDisconnect, connect, token: !!token, participantIdentity, isAdmin });
 
+    // Render name input form if no identity is set yet
     if (!participantIdentity && !error && !showDisconnect) {
         return (
             <div className="participant-view name-input-container" style={{ padding: '30px', textAlign: 'center', maxWidth: '400px', margin: '50px auto' }}>
@@ -158,29 +181,33 @@ const RoomView: React.FC = () => {
                         Join Room
                     </button>
                 </form>
+                {/* Removed error display here as main error state handles it */}
             </div>
         );
     }
 
+    // Show loading indicator while fetching token (after identity is provided)
     if (isLoadingToken && !error && !showDisconnect) {
          return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Loading access for {participantIdentity}...</div>;
     }
 
+    // Show error message if fetch failed or other errors occurred
     if (error) {
         let displayError = `Error: ${error}`;
         if (error.includes("Failed to fetch")) displayError += ". Could not reach backend service.";
         return (
             <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>
                 <p>{displayError}</p>
+                 {/* Allow user to try entering name again if error occurred after identity was set */}
                 <button onClick={() => {setError(null); setParticipantIdentity(null); setSearchParams({}); setIsLoadingToken(false);}} style={{marginRight: '10px'}}>Enter Name Again</button>
-                {/* MODIFICATION START: Conditionally render admin link */}
-                {isAdmin && <Link to="/admin" style={{marginLeft: '10px'}}>Go Back to Admin</Link>}
-                {/* MODIFICATION END */}
+                <Link to="/admin">Go Back to Admin</Link>
             </div>
         );
     }
 
+    // Show disconnect message
     if (showDisconnect) {
+        // ... (disconnect rendering same as before) ...
         let message = "You have been disconnected.";
         if (disconnectReason === DisconnectReason.ROOM_DELETED) message = "The room has been closed.";
         else if (disconnectReason === DisconnectReason.PARTICIPANT_REMOVED) message = "You were removed from the room.";
@@ -194,31 +221,33 @@ const RoomView: React.FC = () => {
                 {disconnectReason !== DisconnectReason.DUPLICATE_IDENTITY && (
                     <button onClick={() => window.location.reload()} style={{marginRight: '10px'}}>Try Reconnecting</button>
                 )}
-                {/* MODIFICATION START: Conditionally render admin link */}
-                {isAdmin && <Link to="/admin" style={{marginLeft: '10px'}}>Go to Admin</Link>}
-                {/* MODIFICATION END */}
+                <Link to="/admin">Go to Admin</Link>
             </div>
         );
     }
 
+    // Show preparing connection if token fetch succeeded but LiveKitRoom hasn't connected yet
      if ((!connect || !token || !livekitUrl) && participantIdentity) {
          return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing connection for {participantIdentity}...</div>;
     }
 
+    // If we shouldn't render LiveKitRoom yet (e.g. missing config), show generic loading/error
     if (!livekitUrl) {
          return <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>Cannot connect: LiveKit URL configuration is missing.</div>;
     }
     if (!token) {
+         // Should ideally be covered by isLoadingToken or error states
           return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection token...</div>;
     }
 
 
+    // --- Render LiveKit Room ---
     return (
         <div className="participant-view room-view-container">
             <LiveKitRoom
                 token={token}
                 serverUrl={livekitUrl}
-                connect={connect}
+                connect={connect} // Should be true here
                 audio={true}
                 video={true}
                 options={roomOptions}
