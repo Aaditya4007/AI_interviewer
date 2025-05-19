@@ -1,5 +1,249 @@
+// import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// import { useParams, useSearchParams } from 'react-router-dom';
+// import {
+//     LiveKitRoom,
+//     VideoConference,
+//     RoomAudioRenderer,
+//     useLocalParticipant,
+//     useRoomContext,
+//     ConnectionStateToast,
+// } from '@livekit/components-react';
+// import { DisconnectReason, RoomOptions } from 'livekit-client';
+// import AdminControls from './AdminControls';
+
+// const AdminControlsWrapper: React.FC = () => {
+//     const room = useRoomContext();
+//     const { localParticipant } = useLocalParticipant();
+//     if (!room || !localParticipant) {
+//         return null;
+//     }
+//     return <AdminControls localParticipant={localParticipant} />;
+// };
+
+// const backendUrl = import.meta.env.VITE_BACKEND_URL;
+// const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
+
+// const RoomView: React.FC = () => {
+//     const { roomName } = useParams<{ roomName: string }>();
+//     const [searchParams, setSearchParams] = useSearchParams();
+
+//     const [participantIdentity, setParticipantIdentity] = useState<string | null>(() => searchParams.get('identity'));
+//     const [isAdmin, setIsAdmin] = useState<boolean>(() => searchParams.get('admin') === 'true');
+//     const [token, setToken] = useState<string | null>(null);
+//     const [isLoadingToken, setIsLoadingToken] = useState(false);
+//     const [connect, setConnect] = useState(false);
+//     const [error, setError] = useState<string | null>(null);
+//     const [showDisconnect, setShowDisconnect] = useState(false);
+//     const [disconnectReason, setDisconnectReason] = useState<DisconnectReason | null>(null);
+//     const [nameInput, setNameInput] = useState('');
+
+//     useEffect(() => {
+//         const identityFromUrl = searchParams.get('identity');
+//         const isAdminFromUrl = searchParams.get('admin') === 'true';
+
+//         if (identityFromUrl) {
+//             if (identityFromUrl !== participantIdentity) {
+//                 setParticipantIdentity(identityFromUrl);
+//             }
+//             if (isAdminFromUrl !== isAdmin) {
+//                 setIsAdmin(isAdminFromUrl);
+//             }
+//             if (!isLoadingToken && !error && !showDisconnect) {
+//                 setIsLoadingToken(true);
+//             }
+//         } else {
+//             setIsLoadingToken(false);
+//             if (participantIdentity) setParticipantIdentity(null);
+//             if (isAdmin) setIsAdmin(false);
+//         }
+//     }, [searchParams]);
+
+//     const handleNameSubmit = useCallback((e: React.FormEvent) => {
+//         e.preventDefault();
+//         const trimmedName = nameInput.trim();
+//         if (trimmedName) {
+//             setSearchParams({ identity: trimmedName }, { replace: true });
+//         }
+//     }, [nameInput, setSearchParams]);
+
+//     const fetchToken = useCallback(async () => {
+//         if (!roomName || !participantIdentity || error || showDisconnect) {
+//             setIsLoadingToken(false);
+//             return;
+//         }
+//         if (!backendUrl || !livekitUrl) {
+//             setError("Configuration error: Backend or LiveKit URL missing.");
+//             setIsLoadingToken(false);
+//             return;
+//         }
+
+//         setIsLoadingToken(true);
+//         setError(null);
+//         setConnect(false);
+//         setToken(null);
+
+//         try {
+//             const response = await fetch(`${backendUrl}/api/livekit/generate-token`, {
+//                 method: 'POST',
+//                 headers: { 'Content-Type': 'application/json' },
+//                 body: JSON.stringify({ roomName, participantIdentity, isAdmin }),
+//             });
+//             const data = await response.json();
+//             if (!response.ok) throw new Error(data.error || `Failed to fetch token: ${response.statusText}`);
+
+//             setToken(data.token);
+//             setConnect(true);
+//         } catch (err: any) {
+//             setError(err.message || 'Could not fetch access token.');
+//             setConnect(false);
+//         } finally {
+//             setIsLoadingToken(false);
+//         }
+//     }, [roomName, participantIdentity, isAdmin, error, showDisconnect, backendUrl, livekitUrl]);
+
+//     useEffect(() => {
+//         if (participantIdentity) {
+//             fetchToken();
+//         } else {
+//             setConnect(false);
+//             setToken(null);
+//         }
+//     }, [participantIdentity, fetchToken]);
+
+//     const roomOptions: RoomOptions = useMemo(() => ({
+//         adaptiveStream: true,
+//         dynacast: true,
+//     }), []);
+
+//     const onDisconnected = useCallback((reason?: DisconnectReason) => {
+//         setConnect(false);
+//         setToken(null);
+//         setShowDisconnect(true);
+//         setDisconnectReason(reason ?? null);
+//         setIsLoadingToken(false);
+//     }, []);
+
+//     if (!participantIdentity && !error && !showDisconnect) {
+//         return (
+//             <div className="participant-view name-input-container" style={{ padding: '30px', textAlign: 'center', maxWidth: '400px', margin: '50px auto' }}>
+//                 <h3>Enter Your Name to Join Room "{roomName}"</h3>
+//                 <form onSubmit={handleNameSubmit}>
+//                     <input
+//                         type="text"
+//                         value={nameInput}
+//                         onChange={(e) => setNameInput(e.target.value)}
+//                         placeholder="Your Name"
+//                         required
+//                         autoFocus
+//                         style={{ padding: '10px', marginBottom: '10px', width: '100%', boxSizing: 'border-box' }}
+//                     />
+//                     <button type="submit" style={{ padding: '10px 20px' }} disabled={!nameInput.trim()}>
+//                         Join Room
+//                     </button>
+//                 </form>
+//             </div>
+//         );
+//     }
+
+//     if (isLoadingToken && !error && !showDisconnect) {
+//         return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Loading access for {participantIdentity}...</div>;
+//     }
+
+//     if (error) {
+//         return (
+//             <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>
+//                 <p>{error.includes("Failed to fetch") ? `${error}. Could not reach backend service.` : `Error: ${error}`}</p>
+//                 <button onClick={() => {
+//                     setError(null);
+//                     setParticipantIdentity(null);
+//                     setSearchParams({});
+//                     setIsLoadingToken(false);
+//                 }}>
+//                     Enter Name Again
+//                 </button>
+//             </div>
+//         );
+//     }
+
+//     if (showDisconnect) {
+//         let message = "You have been disconnected.";
+//         if (disconnectReason === DisconnectReason.ROOM_DELETED) message = "The room has been closed.";
+//         else if (disconnectReason === DisconnectReason.PARTICIPANT_REMOVED) message = "You were removed from the room.";
+//         else if (disconnectReason === DisconnectReason.STATE_MISMATCH) message = "Connection error (state mismatch).";
+//         else if (disconnectReason === DisconnectReason.JOIN_FAILURE) message = "Failed to join the room. The room may not exist or the token might be invalid.";
+//         else if (disconnectReason === DisconnectReason.DUPLICATE_IDENTITY) message = "Another participant with the same identity is already in the room.";
+//         return (
+//             <div className="disconnect-overlay">
+//                 <h2>Disconnected</h2>
+//                 <p>{message}</p>
+//                 {disconnectReason !== DisconnectReason.DUPLICATE_IDENTITY && (
+//                     <button onClick={() => window.location.reload()}>
+//                         Try Reconnecting
+//                     </button>
+//                 )}
+//             </div>
+//         );
+//     }
+
+//     if ((!connect || !token || !livekitUrl) && participantIdentity) {
+//         return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing connection for {participantIdentity}...</div>;
+//     }
+
+//     if (!livekitUrl) {
+//         return <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>Cannot connect: LiveKit URL configuration is missing.</div>;
+//     }
+
+//     if (!token) {
+//         return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection token...</div>;
+//     }
+
+//     return (
+//         <div className="participant-view room-view-container">
+//             <LiveKitRoom
+//                 token={token}
+//                 serverUrl={livekitUrl}
+//                 connect={connect}
+//                 audio={true}
+//                 video={true}
+//                 options={roomOptions}
+//                 onDisconnected={onDisconnected}
+//                 onError={(err: Error) => {
+//                     console.error("LiveKit Room critical error:", err);
+//                     if (err.message.includes("permission denied") || err.message.includes("authentication failed")) {
+//                         setError(`Authentication failed: ${err.message}. Token invalid/expired?`);
+//                     } else {
+//                         setError(`Connection error: ${err.message}`);
+//                     }
+//                     setConnect(false);
+//                     setIsLoadingToken(false);
+//                 }}
+//             >
+//                 <div style={{ marginBottom: '10px', padding: '5px', background: '#eee', borderRadius:'4px' }}>
+//                     <span style={{ fontWeight: 'bold' }}>Room:</span> {roomName} | <span style={{ fontWeight: 'bold' }}>As:</span> {participantIdentity} {isAdmin ? '(Admin)' : ''}
+//                 </div>
+
+//                 {isAdmin && <AdminControlsWrapper />}
+
+//                 <VideoConference />
+//                 <RoomAudioRenderer />
+//                 <ConnectionStateToast />
+//             </LiveKitRoom>
+//         </div>
+//     );
+// };
+
+// export default RoomView;
+
+
+
+
+
+
+
+
+// frontend/src/components/RoomView.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
     LiveKitRoom,
     VideoConference,
@@ -14,101 +258,151 @@ import AdminControls from './AdminControls';
 const AdminControlsWrapper: React.FC = () => {
     const room = useRoomContext();
     const { localParticipant } = useLocalParticipant();
-    if (!room || !localParticipant) {
-        return null;
-    }
+    if (!room || !localParticipant) return null;
     return <AdminControls localParticipant={localParticipant} />;
 };
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL;
 const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
 
-const RoomView: React.FC = () => {
-    const { roomName } = useParams<{ roomName: string }>();
-    const [searchParams, setSearchParams] = useSearchParams();
+interface RoomViewProps {
+    isJoiningFlow?: boolean;
+}
 
-    const [participantIdentity, setParticipantIdentity] = useState<string | null>(() => searchParams.get('identity'));
+const RoomView: React.FC<RoomViewProps> = ({ isJoiningFlow = false }) => {
+    const { roomName: roomNameFromDirectJoin, prospectiveRoomName } = useParams<{ roomName?: string; prospectiveRoomName?: string }>();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    const actualRoomName = useMemo(() => {
+        const name = isJoiningFlow ? prospectiveRoomName : roomNameFromDirectJoin;
+        if (!name) {
+            console.error("Room name is undefined. This should ideally be caught before rendering RoomView.");
+        }
+        return name;
+    }, [isJoiningFlow, prospectiveRoomName, roomNameFromDirectJoin]);
+
     const [isAdmin, setIsAdmin] = useState<boolean>(() => searchParams.get('admin') === 'true');
+    const [participantIdentity, setParticipantIdentity] = useState<string | null>(() => searchParams.get('identity'));
+    const [shouldInitiateRoom, setShouldInitiateRoom] = useState<boolean>(() =>
+        isJoiningFlow || searchParams.get('initiate') === 'true'
+    );
+
     const [token, setToken] = useState<string | null>(null);
-    const [isLoadingToken, setIsLoadingToken] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const [connect, setConnect] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showDisconnect, setShowDisconnect] = useState(false);
     const [disconnectReason, setDisconnectReason] = useState<DisconnectReason | null>(null);
     const [nameInput, setNameInput] = useState('');
 
+    // Effect to keep isAdmin state synchronized with URL params
+    useEffect(() => {
+        setIsAdmin(searchParams.get('admin') === 'true');
+    }, [searchParams]);
+
+
     useEffect(() => {
         const identityFromUrl = searchParams.get('identity');
-        const isAdminFromUrl = searchParams.get('admin') === 'true';
+        const initiateFromUrl = searchParams.get('initiate') === 'true';
 
         if (identityFromUrl) {
-            if (identityFromUrl !== participantIdentity) {
-                setParticipantIdentity(identityFromUrl);
+            if (identityFromUrl !== participantIdentity) setParticipantIdentity(identityFromUrl);
+            const newShouldInitiate = isJoiningFlow || initiateFromUrl;
+            if (newShouldInitiate !== shouldInitiateRoom) setShouldInitiateRoom(newShouldInitiate);
+            
+            if (!isLoading && !error && !showDisconnect && !token) {
+                setIsLoading(true);
             }
-            if (isAdminFromUrl !== isAdmin) {
-                setIsAdmin(isAdminFromUrl);
-            }
-            if (!isLoadingToken && !error && !showDisconnect) {
-                setIsLoadingToken(true);
-            }
-        } else {
-            setIsLoadingToken(false);
+        } else { // No identity in URL
+            setIsLoading(false);
             if (participantIdentity) setParticipantIdentity(null);
-            if (isAdmin) setIsAdmin(false);
+            if (shouldInitiateRoom !== isJoiningFlow) setShouldInitiateRoom(isJoiningFlow);
+            if (token) setToken(null); 
+            if (connect) setConnect(false);
         }
-    }, [searchParams]);
+    }, [searchParams, isJoiningFlow, isLoading, error, showDisconnect, token, participantIdentity, shouldInitiateRoom, connect]);
 
     const handleNameSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         const trimmedName = nameInput.trim();
-        if (trimmedName) {
-            setSearchParams({ identity: trimmedName }, { replace: true });
-        }
-    }, [nameInput, setSearchParams]);
+        if (trimmedName && actualRoomName) {
+            const newParams: Record<string, string> = { identity: trimmedName };
+            if (searchParams.get('admin') === 'true') newParams.admin = 'true'; 
+            if (isJoiningFlow || searchParams.get('initiate') === 'true') newParams.initiate = 'true'; 
 
-    const fetchToken = useCallback(async () => {
-        if (!roomName || !participantIdentity || error || showDisconnect) {
-            setIsLoadingToken(false);
+            setSearchParams(newParams, { replace: true });
+        }
+    }, [nameInput, actualRoomName, setSearchParams, isJoiningFlow, searchParams]);
+
+    const initiateRoomAndFetchToken = useCallback(async () => {
+        if (!actualRoomName || !participantIdentity) {
+            setIsLoading(false);
             return;
         }
         if (!backendUrl || !livekitUrl) {
             setError("Configuration error: Backend or LiveKit URL missing.");
-            setIsLoadingToken(false);
+            setIsLoading(false);
             return;
         }
 
-        setIsLoadingToken(true);
+        setIsLoading(true);
         setError(null);
-        setConnect(false);
-        setToken(null);
+        setConnect(false); 
+        setToken(null);   
 
         try {
-            const response = await fetch(`${backendUrl}/api/livekit/generate-token`, {
+            if (shouldInitiateRoom) {
+                console.log(`Attempting to ensure/create LiveKit room: "${actualRoomName}" for identity: ${participantIdentity} (admin: ${isAdmin})`); // Use isAdmin state
+                const createRoomResponse = await fetch(`${backendUrl}/api/livekit/create-room`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        roomName: actualRoomName,
+                        adminIdentity: isAdmin ? participantIdentity : `room-creator-${participantIdentity}` 
+                    }),
+                });
+                const createRoomData = await createRoomResponse.json();
+                if (!createRoomResponse.ok && createRoomResponse.status !== 409) {
+                    throw new Error(createRoomData.error || `Failed to ensure room: ${createRoomResponse.statusText}`);
+                }
+                console.log(`Room "${actualRoomName}" is now ensured/created. Status: ${createRoomResponse.status}. Message: ${createRoomData.message || 'OK'}`);
+            }
+
+            console.log(`Fetching token for "${participantIdentity}" in room "${actualRoomName}" (isAdmin: ${isAdmin})`); // Use isAdmin state
+            const tokenResponse = await fetch(`${backendUrl}/api/livekit/generate-token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ roomName, participantIdentity, isAdmin }),
+                body: JSON.stringify({ roomName: actualRoomName, participantIdentity, isAdmin }), // Use isAdmin state
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || `Failed to fetch token: ${response.statusText}`);
+            const tokenData = await tokenResponse.json();
+            if (!tokenResponse.ok) {
+                throw new Error(tokenData.error || `Failed to fetch token: ${tokenResponse.statusText}`);
+            }
 
-            setToken(data.token);
+            setToken(tokenData.token);
             setConnect(true);
+            
+            if (searchParams.has('initiate')) {
+                 const newSearchParams = new URLSearchParams(searchParams);
+                 newSearchParams.delete('initiate');
+                 setSearchParams(newSearchParams, { replace: true });
+            }
+
         } catch (err: any) {
-            setError(err.message || 'Could not fetch access token.');
-            setConnect(false);
+            console.error('Error during room initiation or token fetch:', err);
+            setError(err.message || 'Could not prepare or join the room.');
+            setConnect(false); 
         } finally {
-            setIsLoadingToken(false);
+            setIsLoading(false);
         }
-    }, [roomName, participantIdentity, isAdmin, error, showDisconnect, backendUrl, livekitUrl]);
+    }, [actualRoomName, participantIdentity, isAdmin, shouldInitiateRoom, backendUrl, livekitUrl, searchParams, setSearchParams]); // Added isAdmin here
 
     useEffect(() => {
-        if (participantIdentity) {
-            fetchToken();
-        } else {
-            setConnect(false);
-            setToken(null);
+        if (participantIdentity && actualRoomName && !token && !error && !showDisconnect && isLoading) {
+            initiateRoomAndFetchToken();
         }
-    }, [participantIdentity, fetchToken]);
+    }, [participantIdentity, actualRoomName, token, error, showDisconnect, isLoading, initiateRoomAndFetchToken]);
 
     const roomOptions: RoomOptions = useMemo(() => ({
         adaptiveStream: true,
@@ -116,17 +410,78 @@ const RoomView: React.FC = () => {
     }), []);
 
     const onDisconnected = useCallback((reason?: DisconnectReason) => {
+        // Use the `isAdmin` state which is kept in sync with searchParams by its own useEffect.
+        // This should be the state of `isAdmin` when the user was connected.
+        if (isAdmin && reason === DisconnectReason.CLIENT_INITIATED) {
+            console.log("Admin client initiated disconnect. Navigating directly to admin page.");
+            // Navigate first. This should trigger unmount of RoomView.
+            navigate('/admin', { replace: true });
+            // It's good practice to reset sensitive states, but the component will unmount.
+            // Clearing URL params on the /admin page itself might be cleaner if needed there.
+            // For this component, just ensure we don't try to show the disconnect screen.
+            setShowDisconnect(false); 
+            return; // IMPORTANT: Exit to prevent showing the disconnect screen
+        }
+
+        // For all other cases (participant disconnects, or admin non-client-initiated disconnects)
         setConnect(false);
         setToken(null);
-        setShowDisconnect(true);
+        setShowDisconnect(true); // Show the disconnect screen
         setDisconnectReason(reason ?? null);
-        setIsLoadingToken(false);
-    }, []);
+        setIsLoading(false);
+    }, [navigate, isAdmin]); // Depend on the `isAdmin` state and `navigate`
+
+    const handleNavigateToHomeOrAdmin = () => {
+        navigate('/admin', { replace: true }); 
+        setShowDisconnect(false);
+        setError(null);
+        setParticipantIdentity(null); 
+        setToken(null);
+        setNameInput('');
+        setConnect(false);
+        setSearchParams({}, {replace: true}); 
+    };
+
+    const attemptReconnect = () => {
+        setShowDisconnect(false);
+        setError(null);
+        setToken(null);
+        setConnect(false); 
+        if (participantIdentity && actualRoomName) {
+            setIsLoading(true); 
+        } else {
+            handleNavigateToHomeOrAdmin();
+        }
+    };
+    
+    const handleChangeName = () => {
+        setShowDisconnect(false);
+        setError(null);
+        setToken(null);
+        setConnect(false);
+        setParticipantIdentity(null); 
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('identity'); 
+        newSearchParams.delete('admin'); 
+        newSearchParams.delete('initiate'); 
+        setSearchParams(newSearchParams, { replace: true });
+        setNameInput(''); 
+        // setIsAdmin(false); // This will be handled by the useEffect watching searchParams
+    };
+
+    if (!actualRoomName && !error && !showDisconnect) {
+        return (
+            <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>
+                <p>Error: Room name not specified in the URL. Cannot proceed.</p>
+                <button onClick={handleNavigateToHomeOrAdmin}>Return to Setup</button>
+            </div>
+        );
+    }
 
     if (!participantIdentity && !error && !showDisconnect) {
         return (
             <div className="participant-view name-input-container" style={{ padding: '30px', textAlign: 'center', maxWidth: '400px', margin: '50px auto' }}>
-                <h3>Enter Your Name to Join Room "{roomName}"</h3>
+                <h3>Enter Your Name to Join Interview: "{actualRoomName}"</h3>
                 <form onSubmit={handleNameSubmit}>
                     <input
                         type="text"
@@ -138,63 +493,102 @@ const RoomView: React.FC = () => {
                         style={{ padding: '10px', marginBottom: '10px', width: '100%', boxSizing: 'border-box' }}
                     />
                     <button type="submit" style={{ padding: '10px 20px' }} disabled={!nameInput.trim()}>
-                        Join Room
+                        Join Interview
                     </button>
                 </form>
             </div>
         );
     }
 
-    if (isLoadingToken && !error && !showDisconnect) {
-        return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Loading access for {participantIdentity}...</div>;
+    if (isLoading) {
+        return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing session for {participantIdentity || 'guest'}...</div>;
     }
 
     if (error) {
         return (
             <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>
-                <p>{error.includes("Failed to fetch") ? `${error}. Could not reach backend service.` : `Error: ${error}`}</p>
-                <button onClick={() => {
-                    setError(null);
-                    setParticipantIdentity(null);
-                    setSearchParams({});
-                    setIsLoadingToken(false);
-                }}>
-                    Enter Name Again
-                </button>
+                <p>{error.includes("Failed to fetch") || error.includes("Could not reach") ? `${error}. Please check backend service and network.` : `Error: ${error}`}</p>
+                <button onClick={handleNavigateToHomeOrAdmin}>Return to Setup</button>
             </div>
         );
     }
 
+    // The showDisconnect block is only rendered if an admin did NOT do a CLIENT_INITIATED leave.
     if (showDisconnect) {
-        let message = "You have been disconnected.";
-        if (disconnectReason === DisconnectReason.ROOM_DELETED) message = "The room has been closed.";
-        else if (disconnectReason === DisconnectReason.PARTICIPANT_REMOVED) message = "You were removed from the room.";
-        else if (disconnectReason === DisconnectReason.STATE_MISMATCH) message = "Connection error (state mismatch).";
-        else if (disconnectReason === DisconnectReason.JOIN_FAILURE) message = "Failed to join the room. The room may not exist or the token might be invalid.";
-        else if (disconnectReason === DisconnectReason.DUPLICATE_IDENTITY) message = "Another participant with the same identity is already in the room.";
+        let title = "Disconnected";
+        let message = "You have been disconnected from the session.";
+        const reasonKey = disconnectReason !== null && DisconnectReason[disconnectReason] !== undefined 
+            ? DisconnectReason[disconnectReason] 
+            : "UNKNOWN";
+
+        switch (disconnectReason) {
+            case DisconnectReason.CLIENT_INITIATED:
+                message = "You have successfully left the session.";
+                break;
+            case DisconnectReason.ROOM_DELETED:
+                message = isAdmin ? "The room has been closed by an administrator." : "This interview session has ended.";
+                break;
+            case DisconnectReason.PARTICIPANT_REMOVED:
+                message = "You were removed from the room by an administrator.";
+                break;
+            case DisconnectReason.DUPLICATE_IDENTITY:
+                title = "Connection Failed";
+                message = `Another participant with the name "${participantIdentity || 'your chosen name'}" is already in this room. Please use a different name.`;
+                break;
+            case DisconnectReason.JOIN_FAILURE:
+                title = "Connection Failed";
+                message = "Failed to join the room. The session may not exist, your access token might be invalid/expired, or there was a network issue.";
+                break;
+            case DisconnectReason.STATE_MISMATCH:
+                 title = "Connection Error";
+                message = "A connection state mismatch occurred. Please try reconnecting.";
+                break;
+            default: 
+                message = `You have been disconnected. Reason: ${reasonKey}.`;
+                if (disconnectReason === null) message = "You have been disconnected for an unknown reason.";
+                break;
+        }
+        
+        const canAttemptReconnect = !(
+            disconnectReason === DisconnectReason.ROOM_DELETED ||
+            disconnectReason === DisconnectReason.PARTICIPANT_REMOVED ||
+            (disconnectReason === DisconnectReason.JOIN_FAILURE && (message.toLowerCase().includes("token might be invalid") || message.toLowerCase().includes("session may not exist")))
+        );
+
         return (
             <div className="disconnect-overlay">
-                <h2>Disconnected</h2>
+                <h2>{title}</h2>
                 <p>{message}</p>
-                {disconnectReason !== DisconnectReason.DUPLICATE_IDENTITY && (
-                    <button onClick={() => window.location.reload()}>
-                        Try Reconnecting
-                    </button>
-                )}
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    {isAdmin ? ( 
+                        // This block is for non-CLIENT_INITIATED admin disconnects
+                        <>
+                            <button onClick={attemptReconnect}>Try Reconnecting</button>
+                            <button onClick={handleNavigateToHomeOrAdmin} style={{backgroundColor: '#6c757d'}}>Return to Admin Page</button>
+                        </>
+                    ) : (
+                        // Participant Disconnect Logic (as per your "only try reconnecting" request where viable)
+                        <>
+                            {disconnectReason === DisconnectReason.DUPLICATE_IDENTITY ? (
+                                <button onClick={handleChangeName}>Change Name</button>
+                            ) : canAttemptReconnect ? ( 
+                                <button onClick={attemptReconnect}>Try Reconnecting</button>
+                            ) : (
+                                // If reconnect is not an option (e.g., room deleted) AND not DUPLICATE_IDENTITY
+                                <button onClick={handleNavigateToHomeOrAdmin}>Go to Homepage</button>
+                            )}
+                        </>
+                    )}
+                </div>
             </div>
         );
     }
 
-    if ((!connect || !token || !livekitUrl) && participantIdentity) {
-        return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing connection for {participantIdentity}...</div>;
-    }
-
-    if (!livekitUrl) {
-        return <div className="participant-view error-message" style={{ padding: '20px', textAlign: 'center' }}>Cannot connect: LiveKit URL configuration is missing.</div>;
-    }
-
-    if (!token) {
-        return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection token...</div>;
+    if (!connect || !token || !livekitUrl) {
+         if (participantIdentity && actualRoomName) {
+            return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Waiting for connection details for {participantIdentity}... If this persists, please try again from the beginning.</div>;
+         }
+         return <div className="participant-view" style={{ padding: '30px', textAlign: 'center' }}>Preparing session...</div>;
     }
 
     return (
@@ -206,20 +600,20 @@ const RoomView: React.FC = () => {
                 audio={true}
                 video={true}
                 options={roomOptions}
-                onDisconnected={onDisconnected}
+                onDisconnected={onDisconnected} 
                 onError={(err: Error) => {
                     console.error("LiveKit Room critical error:", err);
-                    if (err.message.includes("permission denied") || err.message.includes("authentication failed")) {
-                        setError(`Authentication failed: ${err.message}. Token invalid/expired?`);
+                    if (err.message.includes("permission denied") || err.message.includes("authentication failed") || err.message.includes("Forbidden")) {
+                        setError(`Authentication failed: ${err.message}. The token might be invalid or expired, or room permissions are not correctly set. Try rejoining.`);
                     } else {
-                        setError(`Connection error: ${err.message}`);
+                        setError(`LiveKit Connection error: ${err.message}`);
                     }
-                    setConnect(false);
-                    setIsLoadingToken(false);
+                    setConnect(false); 
+                    setIsLoading(false);
                 }}
             >
-                <div style={{ marginBottom: '10px', padding: '5px', background: '#eee', borderRadius:'4px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Room:</span> {roomName} | <span style={{ fontWeight: 'bold' }}>As:</span> {participantIdentity} {isAdmin ? '(Admin)' : ''}
+                <div style={{ marginBottom: '10px', padding: '5px', background: '#eee', borderRadius:'4px', textAlign:'center' }}>
+                    <span style={{ fontWeight: 'bold' }}>Room:</span> {actualRoomName} | <span style={{ fontWeight: 'bold' }}>As:</span> {participantIdentity} {isAdmin ? '(Admin)' : ''}
                 </div>
 
                 {isAdmin && <AdminControlsWrapper />}
@@ -233,3 +627,5 @@ const RoomView: React.FC = () => {
 };
 
 export default RoomView;
+
+
